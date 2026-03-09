@@ -68,11 +68,6 @@ export const buildNodeConfiguration = (
   };
   let baseNodeConfig = prepareNodeConfig(nodeConfigParameters);
 
-  // Temp: remove when the SDK supports the new config
-  if (baseNodeConfig.node && baseNodeConfig.node.bold && baseNodeConfig.node.bold.strategy) {
-    delete baseNodeConfig.node.bold.strategy;
-  }
-
   if (process.env.DISABLE_L1_FINALITY === 'true') {
     const updatedNodeConfig = {
       node: {
@@ -190,13 +185,6 @@ export const splitConfigPerType = (
   if (
     batchPosterConfig.node &&
     batchPosterConfig.node.bold &&
-    batchPosterConfig.node.bold.strategy
-  ) {
-    delete batchPosterConfig.node.bold.strategy;
-  }
-  if (
-    batchPosterConfig.node &&
-    batchPosterConfig.node.bold &&
     batchPosterConfig.node.bold['assertion-posting-interval']
   ) {
     delete batchPosterConfig.node.bold['assertion-posting-interval'];
@@ -228,9 +216,6 @@ export const splitConfigPerType = (
   const rpcConfig = JSON.parse(JSON.stringify(stakerConfig));
   if (rpcConfig.node && rpcConfig.node.staker) {
     delete rpcConfig.node.staker;
-  }
-  if (rpcConfig.node && rpcConfig.node.bold && rpcConfig.node.bold.strategy) {
-    delete rpcConfig.node.bold.strategy;
   }
   if (rpcConfig.node && rpcConfig.node.bold && rpcConfig.node.bold['assertion-posting-interval']) {
     delete rpcConfig.node.bold['assertion-posting-interval'];

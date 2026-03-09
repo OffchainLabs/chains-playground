@@ -17,10 +17,10 @@
   resolved "https://registry.yarnpkg.com/@adraffy/ens-normalize/-/ens-normalize-1.10.1.tgz#63430d04bd8c5e74f8d7d049338f1cd9d4f02069"
   integrity sha512-96Z2IP3mYmF1Xg2cDm8f1gWGf/HUVedQ3FMifV4kG/PQ4yEP51xDtRAEfhVNt5f/uzpNkZHwWQuUcu6D6K+Ekw==
 
-"@arbitrum/chain-sdk@^0.24.0":
-  version "0.24.2"
-  resolved "https://registry.yarnpkg.com/@arbitrum/chain-sdk/-/chain-sdk-0.24.2.tgz#6d7f873f7c2da1172307becb2e70a06f7213462a"
-  integrity sha512-F3Nnjn2yDyjVTcbipB9Bo4Ify1or2lwvx7FZNbJW02uV12DPj6K34P+JXoYcQFGPmX1JQhVddlJB+43NJ2TTkw==
+"@arbitrum/chain-sdk@^0.25.3":
+  version "0.25.3"
+  resolved "https://registry.yarnpkg.com/@arbitrum/chain-sdk/-/chain-sdk-0.25.3.tgz#73191c568f5252f4881fd16f4dac4b417a2a044b"
+  integrity sha512-K2xBtOlBS8mk47QozIq8cLAYmb40ONoUwrqDb8vSfF4pn+g5BNntx/my2MWi+YASbDG377w49J0iK44L7khljA==
   dependencies:
     "@arbitrum/sdk" "^4.0.4"
     "@arbitrum/token-bridge-contracts" "^1.2.2"
