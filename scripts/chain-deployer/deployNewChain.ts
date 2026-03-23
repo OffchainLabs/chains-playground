@@ -7,21 +7,15 @@ import {
   setValidKeysetPrepareTransactionRequest,
 } from '@arbitrum/chain-sdk';
 import { generateChainId } from '@arbitrum/chain-sdk/utils';
-import {
-  prepareDasConfig,
-  buildNodeConfiguration,
-  saveDasNodeConfigFile,
-  saveNodeConfigFile,
-  splitConfigPerType,
-} from '../../src/utils/node-configuration';
+import { prepareDasConfig, saveDasNodeConfigFile } from '../../src/utils/node-configuration';
 import {
   getBlockExplorerUrl,
   getChainConfigFromChainId,
   sanitizePrivateKey,
-  withFallbackPrivateKey,
   getRpcUrl,
   saveCoreContractsFile,
   isParentChainSupported,
+  saveChainConfigFile,
 } from '../../src/utils/helpers';
 import { chainIsAnytrust } from '../../src/utils/chain-info-helpers';
 import 'dotenv/config';
@@ -29,22 +23,18 @@ import 'dotenv/config';
 // Check for required env variables
 if (
   !process.env.PARENT_CHAIN_ID ||
-  !process.env.CHAIN_OWNER_PRIVATE_KEY ||
-  !process.env.BATCH_POSTER_PRIVATE_KEY ||
-  !process.env.STAKER_PRIVATE_KEY
+  !process.env.DEPLOYER_PRIVATE_KEY ||
+  !process.env.BATCH_POSTER_ADDRESS ||
+  !process.env.STAKER_ADDRESS
 ) {
   throw new Error(
-    'The following environment variables must be present: PARENT_CHAIN_ID, CHAIN_OWNER_PRIVATE_KEY, BATC_POSTER_PRIVATE_KEY, STAKER_PRIVATE_KEY',
+    'The following environment variables must be present: PARENT_CHAIN_ID, DEPLOYER_PRIVATE_KEY, BATCH_POSTER_ADDRESS, STAKER_ADDRESS',
   );
 }
 
-// Load or generate a random batch poster account
-const batchPosterPrivateKey = withFallbackPrivateKey(process.env.BATCH_POSTER_PRIVATE_KEY);
-const batchPoster = privateKeyToAccount(batchPosterPrivateKey).address;
-
-// Load or generate a random staker account
-const validatorPrivateKey = withFallbackPrivateKey(process.env.STAKER_PRIVATE_KEY);
-const validator = privateKeyToAccount(validatorPrivateKey).address;
+// Privileged accounts
+const batchPosterAddress = getAddress(process.env.BATCH_POSTER_ADDRESS);
+const validatorAddress = getAddress(process.env.STAKER_ADDRESS);
 
 // Set the parent chain and create a public client for it
 const parentChainInformation = getChainConfigFromChainId(Number(process.env.PARENT_CHAIN_ID));
@@ -56,7 +46,7 @@ const parentChainPublicClient = createPublicClient({
 });
 
 // Load the deployer account
-const chainOwner = privateKeyToAccount(sanitizePrivateKey(process.env.CHAIN_OWNER_PRIVATE_KEY));
+const deployer = privateKeyToAccount(sanitizePrivateKey(process.env.DEPLOYER_PRIVATE_KEY));
 
 const main = async () => {
   console.log('**************************');
@@ -65,15 +55,18 @@ const main = async () => {
   console.log('');
 
   // Generate a random chain id
-  const chainId = generateChainId();
+  const chainId = process.env.ARBITRUM_CHAIN_ID
+    ? Number(process.env.ARBITRUM_CHAIN_ID)
+    : generateChainId();
 
   //
   // Create the chain config
+  // Note: the initial chain owner will be the deployer, to facilitate the initial admin actions. It will later change to the address specified in CHAIN_OWNER_ADDRESS
   //
   const chainConfig = prepareChainConfig({
     chainId: chainId,
     arbitrum: {
-      InitialChainOwner: chainOwner.address,
+      InitialChainOwner: deployer.address,
       DataAvailabilityCommittee: process.env.USE_ANYTRUST == 'true' ? true : false,
     },
   });
@@ -82,7 +75,7 @@ const main = async () => {
   const arbitrumChainConfig = createRollupPrepareDeploymentParamsConfig(parentChainPublicClient, {
     chainConfig,
     chainId: BigInt(chainId),
-    owner: chainOwner.address,
+    owner: deployer.address,
 
     // Extra parametrization
     confirmPeriodBlocks: 20n, // Reduce confirm period blocks
@@ -116,15 +109,15 @@ const main = async () => {
   const transactionResult = await createRollup({
     params: {
       config: arbitrumChainConfig,
-      batchPosters: [batchPoster],
-      validators: [validator],
+      batchPosters: [batchPosterAddress],
+      validators: [validatorAddress],
       nativeToken,
       deployFactoriesToL2: process.env.DEPLOY_FACTORIES_TO_L2 == 'true' ? true : false,
 
       // The following parameters are mandatory for non-supported parent chains
       maxDataSize: parentChainIsSupported ? undefined : BigInt(process.env.CHAIN_MAX_DATA_SIZE!),
     },
-    account: chainOwner,
+    account: deployer,
     parentChainPublicClient,
   });
 
@@ -134,39 +127,16 @@ const main = async () => {
     )}/tx/${transactionResult.transactionReceipt.transactionHash}`,
   );
 
+  // Store the chain configuration in a JSON file
+  const chainConfigFilePath = saveChainConfigFile(chainConfig);
+  console.log(`Chain configuration written to ${chainConfigFilePath}`);
+
   // Get the core contracts from the transaction receipt
   const coreContracts = transactionResult.transactionReceipt.getCoreContracts();
 
   // Save core contracts in JSON file
   const coreContractsFilePath = saveCoreContractsFile(coreContracts);
   console.log(`Core contracts written to ${coreContractsFilePath}`);
-
-  // Build node configuration
-  const baseNodeConfig = buildNodeConfiguration(
-    chainConfig,
-    coreContracts,
-    batchPosterPrivateKey,
-    validatorPrivateKey,
-    arbitrumChainConfig.stakeToken,
-    parentChainInformation,
-    parentChainRpc,
-  );
-
-  if (process.env.SPLIT_NODES !== 'true') {
-    // Save single node config file
-    const singleNodeConfigFilePath = saveNodeConfigFile('rpc', baseNodeConfig);
-    console.log(`Node config written to ${singleNodeConfigFilePath}`);
-    return;
-  } else {
-    // Split config into the different entities
-    const { batchPosterConfig, stakerConfig, rpcConfig } = splitConfigPerType(baseNodeConfig);
-    const batchPosterfilePath = saveNodeConfigFile('batch-poster', batchPosterConfig);
-    const stakerFilePath = saveNodeConfigFile('staker', stakerConfig);
-    const rpcFilePath = saveNodeConfigFile('rpc', rpcConfig);
-    console.log(`Batch poster config written to ${batchPosterfilePath}`);
-    console.log(`Staker config written to ${stakerFilePath}`);
-    console.log(`RPC config written to ${rpcFilePath}`);
-  }
 
   // If we want to use AnyTrust, we need to:
   //    1. set the right keyset in the SequencerInbox
@@ -187,13 +157,13 @@ const main = async () => {
         sequencerInbox: coreContracts.sequencerInbox,
       },
       keyset,
-      account: chainOwner.address,
+      account: deployer.address,
       publicClient: parentChainPublicClient,
     });
 
     // Sign and send the transaction
     const txHash = await parentChainPublicClient.sendRawTransaction({
-      serializedTransaction: await chainOwner.signTransaction(txRequest),
+      serializedTransaction: await deployer.signTransaction(txRequest),
     });
 
     // Wait for the transaction receipt

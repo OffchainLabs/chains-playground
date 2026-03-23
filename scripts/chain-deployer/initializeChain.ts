@@ -27,12 +27,12 @@ import 'dotenv/config';
 
 // Check for required env variables
 if (
-  !process.env.CHAIN_OWNER_PRIVATE_KEY ||
+  !process.env.DEPLOYER_PRIVATE_KEY ||
   !process.env.BATCH_POSTER_PRIVATE_KEY ||
   !process.env.STAKER_PRIVATE_KEY
 ) {
   throw new Error(
-    'The following environment variables must be present: CHAIN_OWNER_PRIVATE_KEY, BATCH_POSTER_PRIVATE_KEY, STAKER_PRIVATE_KEY',
+    'The following environment variables must be present: DEPLOYER_PRIVATE_KEY, BATCH_POSTER_PRIVATE_KEY, STAKER_PRIVATE_KEY',
   );
 }
 
@@ -40,7 +40,7 @@ if (
 const arbitrumChainConfig = getChainConfiguration();
 
 // Load accounts
-const chainOwner = privateKeyToAccount(sanitizePrivateKey(process.env.CHAIN_OWNER_PRIVATE_KEY));
+const deployer = privateKeyToAccount(sanitizePrivateKey(process.env.DEPLOYER_PRIVATE_KEY));
 const batchPosterAddress = privateKeyToAccount(
   sanitizePrivateKey(process.env.BATCH_POSTER_PRIVATE_KEY),
 ).address;
@@ -52,7 +52,7 @@ const validatorAddress = privateKeyToAccount(
 const parentChainId = Number(arbitrumChainConfig['parent-chain-id']);
 const parentChainInformation = getChainConfigFromChainId(parentChainId);
 const parentChainWalletClient = createWalletClient({
-  account: chainOwner,
+  account: deployer,
   chain: parentChainInformation,
   transport: http(process.env.PARENT_CHAIN_RPC_URL || getRpcUrl(parentChainInformation)),
 });
@@ -129,7 +129,7 @@ const main = async () => {
     await delay(10 * 1000);
   }
 
-  const stakeToken = getChainStakeToken();
+  const stakeToken = await getChainStakeToken(parentChainPublicClient);
   const baseStakeWei = await getChainBaseStake(parentChainPublicClient);
   console.log(
     `Fund staker account on parent chain with ${formatEther(
@@ -195,7 +195,7 @@ const main = async () => {
   //
   console.log(`Fund deployer account on Arbitrum chain with ${fundingAmount} ETH...`);
   const startBalance = await arbitrumChainPublicClient.getBalance({
-    address: chainOwner.address,
+    address: deployer.address,
   });
   if (startBalance >= fundingAmountWei) {
     console.log(
@@ -203,13 +203,13 @@ const main = async () => {
     );
   } else {
     // Check for native token
-    const nativeToken = (await getChainNativeToken(parentChainPublicClient)) as `0x${string}`;
+    const nativeToken = getChainNativeToken();
 
     if (nativeToken != zeroAddress) {
       // Approve native token to deposit through inbox
       console.log('Approving the native token to deposit through inbox');
       const { request: approvalRequest } = await parentChainPublicClient.simulateContract({
-        account: chainOwner,
+        account: deployer,
         address: nativeToken,
         abi: parseAbi(['function approve(address,uint256) public payable']),
         functionName: 'approve',
@@ -224,7 +224,7 @@ const main = async () => {
       );
 
       const { request } = await parentChainPublicClient.simulateContract({
-        account: chainOwner,
+        account: deployer,
         address: arbitrumChainConfig.rollup.inbox,
         abi: parseAbi(['function depositERC20(uint256) public payable']),
         functionName: 'depositERC20',
@@ -239,7 +239,7 @@ const main = async () => {
       );
     } else {
       const { request } = await parentChainPublicClient.simulateContract({
-        account: chainOwner,
+        account: deployer,
         address: arbitrumChainConfig.rollup.inbox,
         abi: parseAbi(['function depositEth() public payable']),
         functionName: 'depositEth',
@@ -261,7 +261,7 @@ const main = async () => {
     while (true) {
       // eslint-disable-next-line no-await-in-loop
       const currentBalance = await arbitrumChainPublicClient.getBalance({
-        address: chainOwner.address,
+        address: deployer.address,
       });
       if (currentBalance - startBalance >= fundingAmountWei) {
         console.log(`Deployer account has been funded on the Arbitrum chain.`);

@@ -12,12 +12,12 @@ import 'dotenv/config';
 
 // Check for required env variables
 if (
-  !process.env.CHAIN_OWNER_PRIVATE_KEY ||
+  !process.env.DEPLOYER_PRIVATE_KEY ||
   !process.env.BATCH_POSTER_PRIVATE_KEY ||
   !process.env.STAKER_PRIVATE_KEY
 ) {
   throw new Error(
-    'The following environment variables must be present: CHAIN_OWNER_PRIVATE_KEY, BATCH_POSTER_PRIVATE_KEY, STAKER_PRIVATE_KEY',
+    'The following environment variables must be present: DEPLOYER_PRIVATE_KEY, BATCH_POSTER_PRIVATE_KEY, STAKER_PRIVATE_KEY',
   );
 }
 
@@ -28,7 +28,7 @@ const MINIMUM_FUNDS_TO_TRANSFER = parseEther('0.01');
 const arbitrumChainConfig = getChainConfiguration();
 
 // Load accounts
-const chainOwner = privateKeyToAccount(sanitizePrivateKey(process.env.CHAIN_OWNER_PRIVATE_KEY));
+const deployer = privateKeyToAccount(sanitizePrivateKey(process.env.DEPLOYER_PRIVATE_KEY));
 const batchPoster = privateKeyToAccount(sanitizePrivateKey(process.env.BATCH_POSTER_PRIVATE_KEY));
 const staker = privateKeyToAccount(sanitizePrivateKey(process.env.STAKER_PRIVATE_KEY));
 
@@ -67,7 +67,7 @@ const main = async () => {
   if (batchPosterBalance > MINIMUM_FUNDS_TO_TRANSFER) {
     const emptyBatchPosterTxHash = await parentChainWalletClient.sendTransaction({
       account: batchPoster,
-      to: chainOwner.address,
+      to: deployer.address,
       value: batchPosterBalance - MINIMUM_FUNDS_TO_TRANSFER,
     });
     console.log(
@@ -92,8 +92,8 @@ const main = async () => {
   if (stakerBalance > MINIMUM_FUNDS_TO_TRANSFER) {
     const emptyStakerTxHash = await parentChainWalletClient.sendTransaction({
       account: staker,
-      to: chainOwner.address,
-      value: stakerBalance - parseEther('0.01'),
+      to: deployer.address,
+      value: stakerBalance - MINIMUM_FUNDS_TO_TRANSFER,
     });
     console.log(
       `Done! Transaction hash on parent chain: ${getBlockExplorerUrl(

@@ -2,7 +2,7 @@ import { Address, Chain } from 'viem';
 import { generatePrivateKey } from 'viem/accounts';
 import { mainnet, sepolia, arbitrum, arbitrumNova, arbitrumSepolia } from 'viem/chains';
 import { readFileSync, writeFileSync } from 'fs';
-import { CoreContracts, registerCustomParentChain } from '@arbitrum/chain-sdk';
+import { ChainConfig, CoreContracts, registerCustomParentChain } from '@arbitrum/chain-sdk';
 import { getCustomParentChains } from '@arbitrum/chain-sdk/chains';
 import { TokenBridgeContracts } from '../types';
 import * as readline from 'readline';
@@ -138,6 +138,22 @@ export const getRpcUrl = (chain: Chain) => {
 //
 // Contract JSON file helpers
 //
+export const saveChainConfigFile = (chainConfig: ChainConfig): string => {
+  const configDir = 'chainConfig';
+  const chainConfigFilename = 'chain-config.json';
+  const filePath = configDir + '/' + chainConfigFilename;
+  writeFileSync(filePath, JSON.stringify(chainConfig, null, 2));
+
+  return filePath;
+};
+
+export const readChainConfigFile = (): ChainConfig => {
+  const configDir = 'chainConfig';
+  const chainConfigFilename = 'chain-config.json';
+  const filePath = configDir + '/' + chainConfigFilename;
+  return JSON.parse(readFileSync(filePath, 'utf8'));
+};
+
 export const saveCoreContractsFile = (coreContracts: CoreContracts): string => {
   const configDir = 'chainConfig';
   const coreContractsFilename = 'core-contracts.json';

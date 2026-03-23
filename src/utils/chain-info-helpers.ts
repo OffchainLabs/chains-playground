@@ -1,6 +1,7 @@
-import { Address, Chain, defineChain, parseAbi, PublicClient, zeroAddress } from 'viem';
+import { Address, Chain, defineChain, parseAbi, PublicClient } from 'viem';
 import { readNodeConfigFile } from './node-configuration';
 import 'dotenv/config';
+import { readChainConfigFile, readCoreContractsFile } from './helpers';
 
 export const getChainInformation = () => {
   if (!process.env.NITRO_RPC_URL || !process.env.NITRO_PORT) {
@@ -50,42 +51,36 @@ export const chainIsL1 = (chain: Chain) => {
 };
 
 export const chainIsAnytrust = (): boolean => {
-  const arbitrumChainConfig = getChainConfiguration();
-  if (arbitrumChainConfig['chain-config'].arbitrum.DataAvailabilityCommittee == true) {
+  const chainConfig = readChainConfigFile();
+  if (chainConfig.arbitrum.DataAvailabilityCommittee == true) {
     return true;
   }
 
   return false;
 };
 
-export const getChainNativeToken = async (
-  parentChainPublicClient: PublicClient,
-): Promise<string> => {
-  const arbitrumChainConfig = getChainConfiguration();
-  const bridge = arbitrumChainConfig.rollup.bridge;
-  let nativeToken: string = zeroAddress;
-  try {
-    const bridgeNativeToken = await parentChainPublicClient.readContract({
-      address: bridge,
-      abi: parseAbi(['function nativeToken() public view returns (address)']),
-      functionName: 'nativeToken',
-    });
-    nativeToken = bridgeNativeToken;
-  } catch (e) {
-    // No need to do anything. Native token stays the zero address.
-  }
-
-  return nativeToken;
+export const getChainNativeToken = (): `0x${string}` => {
+  const coreContracts = readCoreContractsFile();
+  return coreContracts.nativeToken;
 };
 
-export const getChainStakeToken = (): Address => {
-  const arbitrumChainConfig = getChainConfiguration();
-  return arbitrumChainConfig.rollup['stake-token'] as Address;
+export const getChainStakeToken = async (
+  parentChainPublicClient: PublicClient,
+): Promise<Address> => {
+  const coreContracts = readCoreContractsFile();
+  const rollup = coreContracts.rollup;
+  const stakeToken = await parentChainPublicClient.readContract({
+    address: rollup,
+    abi: parseAbi(['function stakeToken() public view returns (address)']),
+    functionName: 'stakeToken',
+  });
+
+  return stakeToken;
 };
 
 export const getChainBaseStake = async (parentChainPublicClient: PublicClient): Promise<bigint> => {
-  const arbitrumChainConfig = getChainConfiguration();
-  const rollup = arbitrumChainConfig.rollup.rollup;
+  const coreContracts = readCoreContractsFile();
+  const rollup = coreContracts.rollup;
   const baseStake = await parentChainPublicClient.readContract({
     address: rollup,
     abi: parseAbi(['function baseStake() public view returns (uint256)']),
