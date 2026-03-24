@@ -6,43 +6,72 @@ This repository contains everything that's needed to start playing with Arbitrum
 
 1. Clone the repository
 
-    `git clone https://github.com/TucksonDev/orbit-playground.git`
+    `git clone https://github.com/OffchainLabs/chains-playground.git`
 
 2. Install dependencies
 
-    `yarn install`
+    `pnpm install`
 
     `git submodule update --init --recursive --force`
 
 ## Configure your chain
 
-Make a copy of the `.env.example` file and call it `.env`. Then, make sure you set a private key for the Chain owner, Batch poster and Staker accounts. You can leave the rest of options with their default, or customize any of them.
+Make a copy of the `.env.example` file and call it `.env`. Then, make sure you set a private key for the deployer, and the addresses of the final chain owner, batch poster and staker accounts. You can leave the rest of options with their default, or customize any of them.
 
 ## Deploy an Arbitrum chain
 
-1. Deploy the contracts
+Chain deployment can be performed only with a parent chain RPC. The script will perform the following operations:
 
-    `yarn deploy-chain`
+1. Deploy the core contracts
+2. Deploy the TokenBridge
+3. Transfer ownership to the specified chain owner address
+4. Show all contracts deployed and chain configuration
 
-2. Launch your nitro node
+Run the following script
 
-    `yarn start-node`
+```shell
+pnpm full-deployment
+```
 
-3. Initialize your chain
+This script will deploy the parent chain contracts using the specified RPC, and then retryable tickets to send the ownership transferring transactions.
 
-    `yarn initialize-chain`
+Once a node is running for the new chain, all retryable tickets execution can be checked with the following script
 
-4. (Optional) Deploy the Token Bridge
+```shell
+pnpm verify-deployment
+```
 
-    `yarn deploy-token-bridge`
+## Individual scripts
 
-5. (Optional) Transfer ownership of the chain to the UpgradeExecutor
+The `full-deployment` scripts make use of multiple scripts that perform individual actions
 
-    `yarn transfer-ownership`
+1. Deploy core contracts: `pnpm deploy-chain`
+2. Deploy TokenBridge: `pnpm deploy-token-bridge`
+3. Transfer ownership: `pnpm transfer-ownership`
 
-## Structure of docker containers
+These can be run individually
 
-When starting your nodes with `yarn start-node` the following containers will start, depending on the mode used:
+## Start your node
+
+Once the chain contracts are all deployed, you can run a node for your chain.
+
+Note that you'll need to set the `BATCH_POSTER_PRIVATE_KEY` and `STAKER_PRIVATE_KEY` env variables if you're running the batch poster and staker.
+
+First build the node configuration with the following command:
+
+```shell
+pnpm build-node-configuration
+```
+
+Then run your node with:
+
+```shell
+pnpm start-node
+```
+
+### Structure of docker containers
+
+When starting your nodes with `pnpm start-node` the following containers will start, depending on the mode used:
 
 - If the `$SPLIT_NODES` env variable is set to false, a single `nitro` container will start that runs a nitro node acting as the batch-poster, staker and regular rpc.
 - If the `$SPLIT_NODES` env variable is set to true, the following containers will start:
@@ -59,17 +88,31 @@ You can manage each individual container with the following commands:
 - `docker compose restart <container>`: restarts the specified container
 - `docker compose create <container>`: creates the specified container (in case it's been removed)
 
-## Enable Blockscout
+### Enable Blockscout
 
 Setting the env variable `ENABLE_BLOCKSCOUT` to true, will start the blockscout containers when running `start-node`.
 
 Blockscout will be available at http://localhost/
 
+## Other available scripts
+
+The following scripts are also available
+
+### Fund relevant accounts
+
+This will fund the batch poster and staker accounts with `FUNDING_AMOUNT`. It will also deposit the same amount to the deployer address on the Arbitrum chain.
+
+```shell
+pnpm initialize-chain
+```
+
 ## Clean up data
 
 To clean up all data generated while running the chain, you can run the following command
 
-`yarn clean`
+```shell
+pnpm clean
+```
 
 ## Using a custom parent chain
 
@@ -86,7 +129,7 @@ git submodule update --init --force --recursive
 Build the nitro-contracts submodule
 
 ```shell
-yarn build-nitro-contracts
+pnpm build-nitro-contracts
 ```
 
 Modify the following env variable:
@@ -99,7 +142,7 @@ MAX_DATA_SIZE=
 Run the rollup creator deployer script with:
 
 ```shell
-yarn deploy-rollup-creator
+pnpm deploy-rollup-creator
 ```
 
 ### Deploy the TokenBridgeCreator factory
@@ -113,7 +156,7 @@ git submodule update --init --force --recursive
 Build the token-bridge-contracts submodule
 
 ```shell
-yarn build-token-bridge-contracts
+pnpm build-token-bridge-contracts
 ```
 
 Modify the following env variable:
@@ -126,7 +169,7 @@ BASECHAIN_WETH=
 Run the rollup creator deployer script with:
 
 ```shell
-yarn deploy-token-bridge-creator
+pnpm deploy-token-bridge-creator
 ```
 
 ### Create a chain using the new factory contracts
