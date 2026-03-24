@@ -17,6 +17,7 @@
     "update-node-config": "ts-node ./scripts/updateNodeConfiguration.ts",
     "recover-funds-from-parent-chain": "ts-node ./scripts/recoverFundsFromParentChain.ts",
     "get-chain-deployment-info": "ts-node ./scripts/chain-deployer/getChainDeploymentInformation.ts",
+    "verify-deployment": "ts-node ./scripts/chain-deployer/verifyDeployment.ts",
     "clean": "./shell-scripts/clean.sh",
     "build-nitro-contracts": "cd nitro-contracts && yarn install && yarn build:all && cp scripts/config.example.ts scripts/config.ts && cd ..",
     "deploy-rollup-creator": "./shell-scripts/deploy-rollupcreator.sh",
