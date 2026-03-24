@@ -1,6 +1,9 @@
 import {
+  concatHex,
   createPublicClient,
   createWalletClient,
+  custom,
+  defineChain,
   encodeFunctionData,
   getAddress,
   http,
@@ -21,6 +24,7 @@ import {
   getChainConfigFromChainId,
   getRpcUrl,
   readCoreContractsFile,
+  readChainConfigFile,
 } from '../../src/utils/helpers';
 import 'dotenv/config';
 import { getChainNativeToken } from '../../src/utils/chain-info-helpers';
@@ -30,6 +34,7 @@ import {
 } from '../../src/abis/createRetryableTicket';
 import { upgradeExecutorABI } from '@arbitrum/chain-sdk/contracts/UpgradeExecutor.js';
 import { arbOwnerABI, arbOwnerAddress } from '@arbitrum/chain-sdk/contracts/ArbOwner.js';
+import { sendL2MessageABI } from '../../src/abis/sendL2Message';
 
 // Check for required env variables
 if (
@@ -81,10 +86,51 @@ if (!tokenBridgeContracts) {
   );
 }
 
+const chainConfig = readChainConfigFile();
+if (!chainConfig) {
+  throw new Error(
+    'Chain configuration not found. Please run the deploy script first to generate the chain configuration file.',
+  );
+}
+
 // Retryable ticket ABI depends on whether the chain has a native token or not
 const nativeToken = getChainNativeToken();
 const createRetryableTicketAbi =
   nativeToken === zeroAddress ? createRetryableTicketEthABI : createRetryableTicketErc20ABI;
+
+// Creating an artificial wallet client for the child chain, to sign transactions
+// The RPCs and block explorers won't be hit
+const arbitrumChain = defineChain({
+  id: chainConfig.chainId,
+  name: 'Arbitrum Chain',
+  network: 'arbitrum-chain',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ['http://localhost:1234/rpc'],
+    },
+    public: {
+      http: ['http://localhost:1234/rpc'],
+    },
+  },
+  blockExplorers: {
+    default: { name: 'Blockscout', url: 'http://localhost:1234/blockscout' },
+  },
+});
+
+// We need a custom transport because `signTransaction` calls eth_chainId to get the chain id
+const arbitrumChainMockedWalletClient = createWalletClient({
+  account: deployer,
+  chain: arbitrumChain,
+  transport: custom({
+    async request({ method }) {
+      if (method === 'eth_chainId') {
+        return '0x' + chainConfig.chainId.toString(16);
+      }
+      throw new Error(`Unexpected RPC call: ${method}`);
+    },
+  }),
+});
 
 // Helper function to prepare a createRetryableTicket transaction
 const prepareRetryableTicketThroughUpgradeExecutorTransactionRequest = async ({
@@ -155,6 +201,7 @@ const main = async () => {
 
   //
   // Add chain owner to parent-chain's UpgradeExecutor
+  // (`deployer` has rights to perform this action)
   //
   const addParentChainExecutorTransactionRequest =
     await upgradeExecutorPrepareAddExecutorTransactionRequest({
@@ -181,6 +228,7 @@ const main = async () => {
 
   //
   // Add chain owner to child-chain's UpgradeExecutor (via RetryableTicket)
+  // (the retryable ticket needs to be sent through the parent-chain's UpgradeExecutor, since its alias has executor rights on the child-chain's UpgradeExecutor)
   //
   const grantRoleCalldata = encodeFunctionData({
     abi: upgradeExecutorABI,
@@ -225,6 +273,7 @@ const main = async () => {
 
   //
   // Add UpgradeExecutor to chain owner on child-chain (via RetryableTicket)
+  // (send this by signing the transaction with the deployer and using Inbox.sendL2Message)
   //
   const addChainOwnerCalldata = encodeFunctionData({
     abi: arbOwnerABI,
@@ -234,16 +283,31 @@ const main = async () => {
     ],
   });
 
-  const addChainOwnerTransactionRequest =
-    await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
-      to: arbOwnerAddress,
-      l2CallValue: 0n,
-      maxSubmissionCost: defaultMaxSubmissionCost,
-      excessFeeRefundAddress: chainOwnerAddress,
-      callValueRefundAddress: chainOwnerAddress,
-      gasLimit: defaultMaxGasLimit,
-      maxFeePerGas: defaultMaxGasPrice,
-      data: addChainOwnerCalldata,
+  const addChainOwnerSignedTransaction = await arbitrumChainMockedWalletClient.signTransaction({
+    to: arbOwnerAddress,
+    data: addChainOwnerCalldata,
+    nonce: 0, // This would be the first transaction from this wallet
+    gas: defaultMaxGasLimit,
+    maxFeePerGas: defaultMaxGasPrice,
+    maxPriorityFeePerGas: 0n,
+  });
+
+  // We need to concatenate the message type (1 byte) with the signed transaction bytes
+  // InboxMessageKind.L2MessageType_signedTx is 4
+  const addChainOwnerSendMessage = concatHex([
+    toHex(4, { size: 1 }), // uint8
+    addChainOwnerSignedTransaction, // the signed tx bytes
+  ]);
+
+  const { request: addChainOwnerTransactionRequest } =
+    await parentChainPublicClient.simulateContract({
+      account: deployer,
+      address: coreContracts.inbox,
+      abi: sendL2MessageABI,
+      functionName: 'sendL2Message',
+      args: [
+        addChainOwnerSendMessage, // message
+      ],
     });
 
   const addChainOwnerTransactionHash = await parentChainWalletClient.writeContract(
@@ -260,6 +324,7 @@ const main = async () => {
 
   //
   // Remove deployer from chain owner on child-chain (via RetryableTicket)
+  // (send this by signing the transaction with the deployer and using Inbox.sendL2Message)
   //
   const removeChainOwnerCalldata = encodeFunctionData({
     abi: arbOwnerABI,
@@ -269,16 +334,31 @@ const main = async () => {
     ],
   });
 
-  const removeChainOwnerTransactionRequest =
-    await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
-      to: arbOwnerAddress,
-      l2CallValue: 0n,
-      maxSubmissionCost: defaultMaxSubmissionCost,
-      excessFeeRefundAddress: chainOwnerAddress,
-      callValueRefundAddress: chainOwnerAddress,
-      gasLimit: defaultMaxGasLimit,
-      maxFeePerGas: defaultMaxGasPrice,
-      data: removeChainOwnerCalldata,
+  const removeChainOwnerSignedTransaction = await arbitrumChainMockedWalletClient.signTransaction({
+    to: arbOwnerAddress,
+    data: removeChainOwnerCalldata,
+    nonce: 1, // This would be the second transaction from this wallet
+    gas: defaultMaxGasLimit,
+    maxFeePerGas: defaultMaxGasPrice,
+    maxPriorityFeePerGas: 0n,
+  });
+
+  // We need to concatenate the message type (1 byte) with the signed transaction bytes
+  // InboxMessageKind.L2MessageType_signedTx is 4
+  const removeChainOwnerSendMessage = concatHex([
+    toHex(4, { size: 1 }), // uint8
+    removeChainOwnerSignedTransaction, // the signed tx bytes
+  ]);
+
+  const { request: removeChainOwnerTransactionRequest } =
+    await parentChainPublicClient.simulateContract({
+      account: deployer,
+      address: coreContracts.inbox,
+      abi: sendL2MessageABI,
+      functionName: 'sendL2Message',
+      args: [
+        removeChainOwnerSendMessage, // message
+      ],
     });
 
   const removeChainOwnerTransactionHash = await parentChainWalletClient.writeContract(
@@ -296,6 +376,7 @@ const main = async () => {
 
   //
   // Remove deployer from child-chain's UpgradeExecutor (via RetryableTicket)
+  // (the retryable ticket needs to be sent through the parent-chain's UpgradeExecutor, since its alias has executor rights on the child-chain's UpgradeExecutor)
   //
   const revokeRoleCalldata = encodeFunctionData({
     abi: upgradeExecutorABI,
@@ -340,6 +421,7 @@ const main = async () => {
 
   //
   // Remove deployer from parent-chain's UpgradeExecutor
+  // (`deployer` has rights to perform this action)
   //
   const removeParentChainExecutorTransactionRequest =
     await upgradeExecutorPrepareRemoveExecutorTransactionRequest({
