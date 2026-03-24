@@ -9,11 +9,11 @@ set +o allexport
 eval "$currentEnvs"
 
 # Deploy chain and token bridge
-yarn deploy-chain
-yarn deploy-token-bridge
+pnpm deploy-chain
+pnpm deploy-token-bridge
 
 # Transfer ownership of the chain to the specified chain owner address
-yarn transfer-ownership
+pnpm transfer-ownership
 
 # Show contracts and chain config
-yarn get-chain-deployment-info
+pnpm get-chain-deployment-info

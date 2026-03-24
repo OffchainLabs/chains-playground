@@ -87,7 +87,7 @@ const createRetryableTicketAbi =
   nativeToken === zeroAddress ? createRetryableTicketEthABI : createRetryableTicketErc20ABI;
 
 // Helper function to prepare a createRetryableTicket transaction
-const prepareRetryableTicketTransactionRequest = async ({
+const prepareRetryableTicketThroughUpgradeExecutorTransactionRequest = async ({
   to,
   l2CallValue,
   maxSubmissionCost,
@@ -124,13 +124,23 @@ const prepareRetryableTicketTransactionRequest = async ({
   }
   retryableTicketArgs.push(data); // data
 
-  // Prepare transaction request
-  const { request } = await parentChainPublicClient.simulateContract({
-    account: deployer,
-    address: coreContracts.inbox,
+  // Encode the function data for createRetryableTicket
+  const createRetryableTicketData = encodeFunctionData({
     abi: createRetryableTicketAbi,
     functionName: 'createRetryableTicket',
     args: retryableTicketArgs,
+  });
+
+  // Prepare transaction request
+  const { request } = await parentChainPublicClient.simulateContract({
+    account: deployer,
+    address: coreContracts.upgradeExecutor,
+    abi: upgradeExecutorABI,
+    functionName: 'executeCall',
+    args: [
+      coreContracts.inbox, // target
+      createRetryableTicketData, // targetCallData
+    ],
     value: nativeToken == zeroAddress ? deposit : 0n,
   });
 
@@ -188,16 +198,17 @@ const main = async () => {
     ],
   });
 
-  const addChildChainExecutorTransactionRequest = await prepareRetryableTicketTransactionRequest({
-    to: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
-    l2CallValue: 0n,
-    maxSubmissionCost: defaultMaxSubmissionCost,
-    excessFeeRefundAddress: chainOwnerAddress,
-    callValueRefundAddress: chainOwnerAddress,
-    gasLimit: defaultMaxGasLimit,
-    maxFeePerGas: defaultMaxGasPrice,
-    data: addChildChainExecutorData,
-  });
+  const addChildChainExecutorTransactionRequest =
+    await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
+      to: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
+      l2CallValue: 0n,
+      maxSubmissionCost: defaultMaxSubmissionCost,
+      excessFeeRefundAddress: chainOwnerAddress,
+      callValueRefundAddress: chainOwnerAddress,
+      gasLimit: defaultMaxGasLimit,
+      maxFeePerGas: defaultMaxGasPrice,
+      data: addChildChainExecutorData,
+    });
 
   const addChildChainExecutorTransactionHash = await parentChainWalletClient.writeContract(
     addChildChainExecutorTransactionRequest,
@@ -223,16 +234,17 @@ const main = async () => {
     ],
   });
 
-  const addChainOwnerTransactionRequest = await prepareRetryableTicketTransactionRequest({
-    to: arbOwnerAddress,
-    l2CallValue: 0n,
-    maxSubmissionCost: defaultMaxSubmissionCost,
-    excessFeeRefundAddress: chainOwnerAddress,
-    callValueRefundAddress: chainOwnerAddress,
-    gasLimit: defaultMaxGasLimit,
-    maxFeePerGas: defaultMaxGasPrice,
-    data: addChainOwnerCalldata,
-  });
+  const addChainOwnerTransactionRequest =
+    await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
+      to: arbOwnerAddress,
+      l2CallValue: 0n,
+      maxSubmissionCost: defaultMaxSubmissionCost,
+      excessFeeRefundAddress: chainOwnerAddress,
+      callValueRefundAddress: chainOwnerAddress,
+      gasLimit: defaultMaxGasLimit,
+      maxFeePerGas: defaultMaxGasPrice,
+      data: addChainOwnerCalldata,
+    });
 
   const addChainOwnerTransactionHash = await parentChainWalletClient.writeContract(
     addChainOwnerTransactionRequest,
@@ -257,16 +269,17 @@ const main = async () => {
     ],
   });
 
-  const removeChainOwnerTransactionRequest = await prepareRetryableTicketTransactionRequest({
-    to: arbOwnerAddress,
-    l2CallValue: 0n,
-    maxSubmissionCost: defaultMaxSubmissionCost,
-    excessFeeRefundAddress: chainOwnerAddress,
-    callValueRefundAddress: chainOwnerAddress,
-    gasLimit: defaultMaxGasLimit,
-    maxFeePerGas: defaultMaxGasPrice,
-    data: removeChainOwnerCalldata,
-  });
+  const removeChainOwnerTransactionRequest =
+    await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
+      to: arbOwnerAddress,
+      l2CallValue: 0n,
+      maxSubmissionCost: defaultMaxSubmissionCost,
+      excessFeeRefundAddress: chainOwnerAddress,
+      callValueRefundAddress: chainOwnerAddress,
+      gasLimit: defaultMaxGasLimit,
+      maxFeePerGas: defaultMaxGasPrice,
+      data: removeChainOwnerCalldata,
+    });
 
   const removeChainOwnerTransactionHash = await parentChainWalletClient.writeContract(
     removeChainOwnerTransactionRequest,
@@ -300,8 +313,8 @@ const main = async () => {
     ],
   });
 
-  const removeChildChainExecutorTransactionRequest = await prepareRetryableTicketTransactionRequest(
-    {
+  const removeChildChainExecutorTransactionRequest =
+    await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
       to: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
       l2CallValue: 0n,
       maxSubmissionCost: defaultMaxSubmissionCost,
@@ -310,8 +323,7 @@ const main = async () => {
       gasLimit: defaultMaxGasLimit,
       maxFeePerGas: defaultMaxGasPrice,
       data: removeChildChainExecutorData,
-    },
-  );
+    });
 
   const removeChildChainExecutorTransactionHash = await parentChainWalletClient.writeContract(
     removeChildChainExecutorTransactionRequest,
