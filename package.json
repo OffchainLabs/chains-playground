@@ -6,16 +6,18 @@
   "scripts": {
     "lint": "eslint .",
     "format": "prettier '{scripts,src}/**/*.{js,json,ts,yml}' --write && eslint --fix",
+    "full-deployment": "./shell-scripts/full-chain-deployment.sh",
     "deploy-chain": "ts-node ./scripts/chain-deployer/deployNewChain.ts",
     "start-node": "./shell-scripts/start-nitro.sh",
     "initialize-chain": "ts-node ./scripts/chain-deployer/initializeChain.ts",
     "deploy-token-bridge": "ts-node ./scripts/chain-deployer/deployTokenBridge.ts",
     "transfer-ownership": "ts-node ./scripts/chain-deployer/transferOwnership.ts",
-    "build-nitro": "./shell-scripts/build-nitro.sh",
-    "build-nitro-dev": "./shell-scripts/build-nitro-dev.sh",
+    "build-node-configuration": "ts-node ./scripts/chain-deployer/buildNodeConfiguration.ts",
     "update-wasm": "ts-node ./scripts/updateWasmModuleRoot.ts",
     "update-node-config": "ts-node ./scripts/updateNodeConfiguration.ts",
     "recover-funds-from-parent-chain": "ts-node ./scripts/recoverFundsFromParentChain.ts",
+    "get-chain-deployment-info": "ts-node ./scripts/chain-deployer/getChainDeploymentInformation.ts",
+    "verify-deployment": "ts-node ./scripts/chain-deployer/verifyDeployment.ts",
     "clean": "./shell-scripts/clean.sh",
     "build-nitro-contracts": "cd nitro-contracts && yarn install && yarn build:all && cp scripts/config.example.ts scripts/config.ts && cd ..",
     "deploy-rollup-creator": "./shell-scripts/deploy-rollupcreator.sh",
@@ -43,8 +45,11 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "prettier": "^2.8.3"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@arbitrum/chain-sdk"]
+  },
   "dependencies": {
-    "@arbitrum/chain-sdk": "^0.25.3",
+    "@arbitrum/chain-sdk": "github:OffchainLabs/arbitrum-chain-sdk#feat/add-prepare-script&path:src",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2",
     "viem": "^1.21.4"
