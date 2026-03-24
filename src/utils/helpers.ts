@@ -1,5 +1,4 @@
 import { Address, Chain } from 'viem';
-import { generatePrivateKey } from 'viem/accounts';
 import { mainnet, sepolia, arbitrum, arbitrumNova, arbitrumSepolia } from 'viem/chains';
 import { readFileSync, writeFileSync } from 'fs';
 import { ChainConfig, CoreContracts, registerCustomParentChain } from '@arbitrum/chain-sdk';
@@ -58,14 +57,6 @@ export const sanitizePrivateKey = (privateKey: string): `0x${string}` => {
 
 export const getBlockExplorerUrl = (chain: Chain) => {
   return chain.blockExplorers?.default.url;
-};
-
-export const withFallbackPrivateKey = (privateKey: string | undefined): `0x${string}` => {
-  if (typeof privateKey === 'undefined') {
-    return generatePrivateKey();
-  }
-
-  return sanitizePrivateKey(privateKey);
 };
 
 export const isParentChainSupported = (chainId: number): boolean => {

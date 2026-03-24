@@ -39,7 +39,7 @@ if (!process.env.DEPLOYER_PRIVATE_KEY || !process.env.PARENT_CHAIN_ID) {
 // Load accounts
 const deployer = privateKeyToAccount(sanitizePrivateKey(process.env.DEPLOYER_PRIVATE_KEY));
 
-// Set the parent chain and create a wallet client for it
+// Set the parent chain and create a public client for it
 const parentChainInformation = getChainConfigFromChainId(Number(process.env.PARENT_CHAIN_ID));
 const parentChainPublicClient = createPublicClient({
   chain: parentChainInformation,

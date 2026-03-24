@@ -2,44 +2,9 @@ import { Address } from 'viem';
 
 export type NodeType = 'batch-poster' | 'staker' | 'rpc';
 
-export interface ArbitrumChainConfig {
-  'chainOwner': string;
-  'rollup': string;
-  'inbox': string;
-  'outbox': string;
-  'adminProxy': string;
-  'sequencerInbox': string;
-  'bridge': string;
-  'utils': string;
-  'validatorWalletCreator': string;
-  'deployedAtBlockNumber': number;
-  'minL2BaseFee': number;
-  'networkFeeReceiver': string;
-  'infrastructureFeeCollector': string;
-  'batchPoster': string;
-  'staker': string;
-  'chainId': number;
-  'chainName': string;
-  'parentChainId': number;
-  'parent-chain-node-url': string;
-  'nativeToken': string;
-}
-
-export interface ArbitrumChainInformation {
-  chainId: number;
-  chainName: string;
-  rpcUrl: string;
-  nativeToken: {
-    name: string;
-    symbol: string;
-    decimals: number;
-  };
-  blockexplorerUrl: string;
-}
-
 /*
   Temporary type definitions
-  (This are likely to be exposed or added on the Arbitrum Chain SDK in the future)
+  (These are likely to be exposed or added on the Arbitrum Chain SDK in the future)
 */
 type TokenBridgeParentChainContracts = {
   router: Address;

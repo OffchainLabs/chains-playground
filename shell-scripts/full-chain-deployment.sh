@@ -12,5 +12,8 @@ eval "$currentEnvs"
 yarn deploy-chain
 yarn deploy-token-bridge
 
+# Transfer ownership of the chain to the specified chain owner address
+yarn transfer-ownership
+
 # Show contracts and chain config
 yarn get-chain-deployment-info
