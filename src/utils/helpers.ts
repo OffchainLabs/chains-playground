@@ -127,6 +127,14 @@ export const getRpcUrl = (chain: Chain) => {
 };
 
 //
+// Gas estimation helpers
+//
+export const applyBuffer = (estimatedValue: bigint) => {
+  const appliedGasBuffer = 1 + Number(process.env.BUFFER_INCREASE_PERCENTAGE) / 100;
+  return BigInt(Math.ceil(Number(estimatedValue) * appliedGasBuffer));
+};
+
+//
 // Contract JSON file helpers
 //
 export const saveChainConfigFile = (chainConfig: ChainConfig): string => {

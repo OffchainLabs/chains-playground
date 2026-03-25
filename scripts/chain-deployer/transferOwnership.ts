@@ -25,6 +25,7 @@ import {
   getRpcUrl,
   readCoreContractsFile,
   readChainConfigFile,
+  applyBuffer,
 } from '../../src/utils/helpers';
 import 'dotenv/config';
 import { getChainNativeToken } from '../../src/utils/chain-info-helpers';
@@ -35,15 +36,17 @@ import {
 import { upgradeExecutorABI } from '@arbitrum/chain-sdk/contracts/UpgradeExecutor.js';
 import { arbOwnerABI, arbOwnerAddress } from '@arbitrum/chain-sdk/contracts/ArbOwner.js';
 import { sendL2MessageABI } from '../../src/abis/sendL2Message';
+import { calculateMaxSubmissionCost } from '../../src/utils/on-chain-helpers';
 
 // Check for required env variables
 if (
   !process.env.DEPLOYER_PRIVATE_KEY ||
   !process.env.CHAIN_OWNER_ADDRESS ||
-  !process.env.PARENT_CHAIN_ID
+  !process.env.PARENT_CHAIN_ID ||
+  !process.env.MAX_GAS_PRICE
 ) {
   throw new Error(
-    'The following environment variables must be present: DEPLOYER_PRIVATE_KEY, CHAIN_OWNER_ADDRESS, PARENT_CHAIN_ID',
+    'The following environment variables must be present: DEPLOYER_PRIVATE_KEY, CHAIN_OWNER_ADDRESS, PARENT_CHAIN_ID, MAX_GAS_PRICE',
   );
 }
 
@@ -51,9 +54,8 @@ if (
 const UPGRADE_EXECUTOR_ROLE_EXECUTOR = keccak256(toHex('EXECUTOR_ROLE'));
 
 // Gas defaults
-const defaultMaxSubmissionCost = 200_000_000_000_000n; // 0.0002 ETH
-const defaultMaxGasLimit = 2_000_000n; // 2 million gas
-const defaultMaxGasPrice = 1_000_000_000n; // 1 gwei
+const defaultMaxGasLimit = 100_000n; // 100,000 gas
+const defaultMaxGasPrice = BigInt(process.env.MAX_GAS_PRICE);
 
 // Load accounts
 const deployer = privateKeyToAccount(sanitizePrivateKey(process.env.DEPLOYER_PRIVATE_KEY));
@@ -71,7 +73,7 @@ const parentChainWalletClient = createWalletClient({
   transport: http(process.env.PARENT_CHAIN_RPC_URL || getRpcUrl(parentChainInformation)),
 });
 
-// Get all contracts
+// Get all contracts and chain config
 const coreContracts = readCoreContractsFile();
 if (!coreContracts) {
   throw new Error(
@@ -136,7 +138,6 @@ const arbitrumChainMockedWalletClient = createWalletClient({
 const prepareRetryableTicketThroughUpgradeExecutorTransactionRequest = async ({
   to,
   l2CallValue,
-  maxSubmissionCost,
   excessFeeRefundAddress,
   callValueRefundAddress,
   gasLimit,
@@ -145,24 +146,33 @@ const prepareRetryableTicketThroughUpgradeExecutorTransactionRequest = async ({
 }: {
   to: `0x${string}`;
   l2CallValue: bigint;
-  maxSubmissionCost: bigint;
   excessFeeRefundAddress: `0x${string}`;
   callValueRefundAddress: `0x${string}`;
   gasLimit: bigint;
   maxFeePerGas: bigint;
   data: `0x${string}`;
 }) => {
+  // Calculate the submission cost
+  const maxSubmissionCost = await calculateMaxSubmissionCost(
+    parentChainPublicClient,
+    BigInt(Math.ceil((data.length - 2) / 2)), // convert data length from hex string to bytes
+  );
+
+  // Apply buffers
+  const bufferedMaxSubmissionCost = applyBuffer(maxSubmissionCost);
+  const bufferedGasLimit = applyBuffer(gasLimit);
+
   // Deposit
-  const deposit = maxSubmissionCost + gasLimit * maxFeePerGas;
+  const deposit = bufferedMaxSubmissionCost + bufferedGasLimit * maxFeePerGas;
 
   // Retryable ticket arguments
   const retryableTicketArgs = [
     to,
     l2CallValue,
-    maxSubmissionCost,
+    bufferedMaxSubmissionCost,
     excessFeeRefundAddress,
     callValueRefundAddress,
-    gasLimit,
+    bufferedGasLimit,
     maxFeePerGas,
   ];
   if (nativeToken != zeroAddress) {
@@ -250,7 +260,6 @@ const main = async () => {
     await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
       to: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
       l2CallValue: 0n,
-      maxSubmissionCost: defaultMaxSubmissionCost,
       excessFeeRefundAddress: chainOwnerAddress,
       callValueRefundAddress: chainOwnerAddress,
       gasLimit: defaultMaxGasLimit,
@@ -398,7 +407,6 @@ const main = async () => {
     await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
       to: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
       l2CallValue: 0n,
-      maxSubmissionCost: defaultMaxSubmissionCost,
       excessFeeRefundAddress: chainOwnerAddress,
       callValueRefundAddress: chainOwnerAddress,
       gasLimit: defaultMaxGasLimit,

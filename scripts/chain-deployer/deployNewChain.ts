@@ -7,7 +7,6 @@ import {
   setValidKeysetPrepareTransactionRequest,
 } from '@arbitrum/chain-sdk';
 import { generateChainId } from '@arbitrum/chain-sdk/utils';
-import { prepareDasConfig, saveDasNodeConfigFile } from '../../src/utils/node-configuration';
 import {
   getBlockExplorerUrl,
   getChainConfigFromChainId,
@@ -138,9 +137,7 @@ const main = async () => {
   const coreContractsFilePath = saveCoreContractsFile(coreContracts);
   console.log(`Core contracts written to ${coreContractsFilePath}`);
 
-  // If we want to use AnyTrust, we need to:
-  //    1. set the right keyset in the SequencerInbox
-  //    2. generate the DAS node configuration
+  // If we want to use AnyTrust, we need to set the right keyset in the SequencerInbox
   if (chainIsAnytrust()) {
     //
     // Set the default keyset in the SequencerInbox
@@ -174,13 +171,6 @@ const main = async () => {
         txReceipt.transactionHash
       }`,
     );
-
-    //
-    // Prepare DAS node config
-    //
-    const dasNodeConfig = prepareDasConfig(parentChainRpc, coreContracts.sequencerInbox);
-    const dasConfigFilePath = saveDasNodeConfigFile(dasNodeConfig);
-    console.log(`DAS node config written to ${dasConfigFilePath}`);
   }
 };
 

@@ -1,4 +1,4 @@
-import { createPublicClient, getAddress, http, keccak256, toHex } from 'viem';
+import { createPublicClient, getAddress, http, keccak256, parseAbi, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
   getChainConfigFromChainId,
@@ -15,6 +15,7 @@ import {
   arbOwnerPublicABI,
   arbOwnerPublicAddress,
 } from '@arbitrum/chain-sdk/contracts/ArbOwnerPublic.js';
+import { getTokenBridgeCreatorAddress } from '@arbitrum/chain-sdk/utils';
 
 // Check for required env variables
 // Check for required env variables
@@ -79,7 +80,26 @@ const main = async () => {
   //
   // Verify TokenBridge contracts creation
   //
-  // Note: if the router contract is present, the factory and all other contracts should also be present
+  // Note: Check whether the factory exists
+  const tokenBridgeCreatorAddress = getTokenBridgeCreatorAddress(parentChainPublicClient);
+  const factoryAddress = await parentChainPublicClient.readContract({
+    address: tokenBridgeCreatorAddress,
+    abi: parseAbi(['function canonicalL2FactoryAddress() view returns (address)']),
+    functionName: 'canonicalL2FactoryAddress',
+  });
+
+  const arbitrumChainFactoryBytecode = await arbitrumChainPublicClient.getBytecode({
+    address: factoryAddress,
+  });
+
+  if (!arbitrumChainFactoryBytecode || arbitrumChainFactoryBytecode == '0x') {
+    throw new Error(
+      `Can't find TokenBridge Factory contract in the Arbitrum chain. Retryable ticket execution might have failed.`,
+    );
+  }
+  console.log('TokenBridge contracts verified successfully');
+
+  // Note: if the router contract is present, all other contracts should also be present
   const arbitrumChainRouterBytecode = await arbitrumChainPublicClient.getBytecode({
     address: tokenBridgeContracts.orbitChainContracts.router,
   });
