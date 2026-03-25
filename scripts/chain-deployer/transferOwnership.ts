@@ -54,6 +54,10 @@ if (
 const UPGRADE_EXECUTOR_ROLE_EXECUTOR = keccak256(toHex('EXECUTOR_ROLE'));
 
 // Gas defaults
+// Gas used for all child-chain operations are as follows:
+// - Retryable ticket processing: ~65,000 gas
+// - Granting/revoking executor role: ~23,000 gas
+// - Adding/removing chain owner: ~22,000 gas
 const defaultMaxGasLimit = 100_000n; // 100,000 gas
 const defaultMaxGasPrice = BigInt(process.env.MAX_GAS_PRICE);
 
