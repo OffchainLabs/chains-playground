@@ -7,25 +7,22 @@ import {
   promptQuestion,
   sanitizePrivateKey,
 } from '../src/utils/helpers';
-import { getChainConfiguration } from '../src/utils/chain-info-helpers';
 import 'dotenv/config';
 
 // Check for required env variables
 if (
   !process.env.DEPLOYER_PRIVATE_KEY ||
   !process.env.BATCH_POSTER_PRIVATE_KEY ||
-  !process.env.STAKER_PRIVATE_KEY
+  !process.env.STAKER_PRIVATE_KEY ||
+  !process.env.PARENT_CHAIN_ID
 ) {
   throw new Error(
-    'The following environment variables must be present: DEPLOYER_PRIVATE_KEY, BATCH_POSTER_PRIVATE_KEY, STAKER_PRIVATE_KEY',
+    'The following environment variables must be present: DEPLOYER_PRIVATE_KEY, BATCH_POSTER_PRIVATE_KEY, STAKER_PRIVATE_KEY, PARENT_CHAIN_ID',
   );
 }
 
 // Constants
 const MINIMUM_FUNDS_TO_TRANSFER = parseEther('0.01');
-
-// Get Arbitrum chain configuration
-const arbitrumChainConfig = getChainConfiguration();
 
 // Load accounts
 const deployer = privateKeyToAccount(sanitizePrivateKey(process.env.DEPLOYER_PRIVATE_KEY));
@@ -33,8 +30,7 @@ const batchPoster = privateKeyToAccount(sanitizePrivateKey(process.env.BATCH_POS
 const staker = privateKeyToAccount(sanitizePrivateKey(process.env.STAKER_PRIVATE_KEY));
 
 // Set the parent chain and create a wallet client for it
-const parentChainId = Number(arbitrumChainConfig['parent-chain-id']);
-const parentChainInformation = getChainConfigFromChainId(parentChainId);
+const parentChainInformation = getChainConfigFromChainId(Number(process.env.PARENT_CHAIN_ID));
 const parentChainWalletClient = createWalletClient({
   chain: parentChainInformation,
   transport: http(process.env.PARENT_CHAIN_RPC_URL || undefined),

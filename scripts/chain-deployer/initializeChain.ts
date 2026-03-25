@@ -2,6 +2,7 @@ import {
   createPublicClient,
   createWalletClient,
   formatEther,
+  getAddress,
   http,
   maxUint256,
   parseAbi,
@@ -15,12 +16,12 @@ import {
   sanitizePrivateKey,
   delay,
   getRpcUrl,
+  readCoreContractsFile,
 } from '../../src/utils/helpers';
 import {
   getChainBaseStake,
   getChainStakeToken,
   getChainNativeToken,
-  getChainConfiguration,
   getChainInformation,
 } from '../../src/utils/chain-info-helpers';
 import 'dotenv/config';
@@ -28,29 +29,30 @@ import 'dotenv/config';
 // Check for required env variables
 if (
   !process.env.DEPLOYER_PRIVATE_KEY ||
-  !process.env.BATCH_POSTER_PRIVATE_KEY ||
-  !process.env.STAKER_PRIVATE_KEY
+  !process.env.BATCH_POSTER_ADDRESS ||
+  !process.env.STAKER_ADDRESS ||
+  !process.env.PARENT_CHAIN_ID
 ) {
   throw new Error(
-    'The following environment variables must be present: DEPLOYER_PRIVATE_KEY, BATCH_POSTER_PRIVATE_KEY, STAKER_PRIVATE_KEY',
+    'The following environment variables must be present: DEPLOYER_PRIVATE_KEY, BATCH_POSTER_ADDRESS, STAKER_ADDRESS, PARENT_CHAIN_ID',
   );
 }
 
-// Get chain configuration
-const arbitrumChainConfig = getChainConfiguration();
+// Get core contracts
+const coreContracts = readCoreContractsFile();
+if (!coreContracts) {
+  throw new Error(
+    'Core contracts information not found. Please run the deploy script first to generate the core contracts file.',
+  );
+}
 
 // Load accounts
 const deployer = privateKeyToAccount(sanitizePrivateKey(process.env.DEPLOYER_PRIVATE_KEY));
-const batchPosterAddress = privateKeyToAccount(
-  sanitizePrivateKey(process.env.BATCH_POSTER_PRIVATE_KEY),
-).address;
-const validatorAddress = privateKeyToAccount(
-  sanitizePrivateKey(process.env.STAKER_PRIVATE_KEY),
-).address;
+const batchPosterAddress = getAddress(process.env.BATCH_POSTER_ADDRESS);
+const validatorAddress = getAddress(process.env.STAKER_ADDRESS);
 
 // Set the parent chain and create a wallet client for it
-const parentChainId = Number(arbitrumChainConfig['parent-chain-id']);
-const parentChainInformation = getChainConfigFromChainId(parentChainId);
+const parentChainInformation = getChainConfigFromChainId(Number(process.env.PARENT_CHAIN_ID));
 const parentChainWalletClient = createWalletClient({
   account: deployer,
   chain: parentChainInformation,
@@ -213,7 +215,7 @@ const main = async () => {
         address: nativeToken,
         abi: parseAbi(['function approve(address,uint256) public payable']),
         functionName: 'approve',
-        args: [arbitrumChainConfig.rollup.inbox, maxUint256],
+        args: [coreContracts.inbox, maxUint256],
       });
 
       const approvalTxHash = await parentChainWalletClient.writeContract(approvalRequest);
@@ -225,7 +227,7 @@ const main = async () => {
 
       const { request } = await parentChainPublicClient.simulateContract({
         account: deployer,
-        address: arbitrumChainConfig.rollup.inbox,
+        address: coreContracts.inbox,
         abi: parseAbi(['function depositERC20(uint256) public payable']),
         functionName: 'depositERC20',
         args: [fundingAmountWei],
@@ -240,7 +242,7 @@ const main = async () => {
     } else {
       const { request } = await parentChainPublicClient.simulateContract({
         account: deployer,
-        address: arbitrumChainConfig.rollup.inbox,
+        address: coreContracts.inbox,
         abi: parseAbi(['function depositEth() public payable']),
         functionName: 'depositEth',
         value: fundingAmountWei,

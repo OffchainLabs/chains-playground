@@ -1,5 +1,4 @@
 import { Address, Chain, defineChain, parseAbi, PublicClient } from 'viem';
-import { readNodeConfigFile } from './node-configuration';
 import 'dotenv/config';
 import { readChainConfigFile, readCoreContractsFile } from './helpers';
 
@@ -10,16 +9,19 @@ export const getChainInformation = () => {
     );
   }
 
-  const nodeConfig = readNodeConfigFile('rpc');
-  const arbitrumChainConfig = JSON.parse(nodeConfig.chain!['info-json']!)[0];
-  const chainId = Number(arbitrumChainConfig['chain-id']);
+  const chainConfig = readChainConfigFile();
+  if (!chainConfig) {
+    throw new Error(
+      'Chain configuration not found. Please run the deploy script first to generate the chain configuration file.',
+    );
+  }
 
   const chainRpc = process.env.NITRO_RPC_URL + ':' + process.env.NITRO_PORT;
   const blockExplorerUrl = 'http://localhost';
 
   return defineChain({
-    id: chainId,
-    name: arbitrumChainConfig['chain-name'],
+    id: chainConfig.chainId,
+    name: 'Arbitrum chain',
     network: 'arbitrum-chain',
     nativeCurrency: {
       name: 'ETH',
@@ -38,12 +40,6 @@ export const getChainInformation = () => {
       default: { name: 'Blockscout', url: blockExplorerUrl },
     },
   });
-};
-
-export const getChainConfiguration = () => {
-  const nodeConfig = readNodeConfigFile('rpc');
-  const arbitrumChainConfig = JSON.parse(nodeConfig.chain!['info-json']!)[0];
-  return arbitrumChainConfig;
 };
 
 export const chainIsL1 = (chain: Chain) => {

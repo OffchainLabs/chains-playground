@@ -1,5 +1,7 @@
 import {
   buildNodeConfiguration,
+  prepareDasConfig,
+  saveDasNodeConfigFile,
   saveNodeConfigFile,
   splitConfigPerType,
 } from '../../src/utils/node-configuration';
@@ -12,7 +14,7 @@ import {
 } from '../../src/utils/helpers';
 import 'dotenv/config';
 import { createPublicClient, http } from 'viem';
-import { getChainStakeToken } from '../../src/utils/chain-info-helpers';
+import { chainIsAnytrust, getChainStakeToken } from '../../src/utils/chain-info-helpers';
 
 // Check for required env variables
 if (
@@ -85,6 +87,13 @@ const main = async () => {
     console.log(`Batch poster config written to ${batchPosterfilePath}`);
     console.log(`Staker config written to ${stakerFilePath}`);
     console.log(`RPC config written to ${rpcFilePath}`);
+  }
+
+  // If we want to use AnyTrust, we need to generate the DAS node configuration
+  if (chainIsAnytrust()) {
+    const dasNodeConfig = prepareDasConfig(parentChainRpc, coreContracts.sequencerInbox);
+    const dasConfigFilePath = saveDasNodeConfigFile(dasNodeConfig);
+    console.log(`DAS node config written to ${dasConfigFilePath}`);
   }
 };
 
