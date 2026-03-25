@@ -1,4 +1,12 @@
-import { createPublicClient, getAddress, http, keccak256, parseAbi, toHex } from 'viem';
+import {
+  createPublicClient,
+  getAddress,
+  http,
+  keccak256,
+  parseAbi,
+  toHex,
+  zeroAddress,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
   getChainConfigFromChainId,
@@ -8,7 +16,7 @@ import {
   readTokenBridgeContractsFile,
   sanitizePrivateKey,
 } from '../../src/utils/helpers';
-import { getChainInformation } from '../../src/utils/chain-info-helpers';
+import { getChainInformation, getChainNativeToken } from '../../src/utils/chain-info-helpers';
 import 'dotenv/config';
 import { upgradeExecutorABI } from '@arbitrum/chain-sdk/contracts/UpgradeExecutor.js';
 import {
@@ -77,6 +85,8 @@ const main = async () => {
     );
   }
 
+  const nativeToken = getChainNativeToken();
+
   //
   // Verify TokenBridge contracts creation
   //
@@ -97,7 +107,7 @@ const main = async () => {
       `Can't find TokenBridge Factory contract in the Arbitrum chain. Retryable ticket execution might have failed.`,
     );
   }
-  console.log('TokenBridge contracts verified successfully');
+  console.log('TokenBridge factory contract verified successfully');
 
   // Note: if the router contract is present, all other contracts should also be present
   const arbitrumChainRouterBytecode = await arbitrumChainPublicClient.getBytecode({
@@ -110,6 +120,35 @@ const main = async () => {
     );
   }
   console.log('TokenBridge contracts verified successfully');
+
+  if (nativeToken == zeroAddress) {
+    const configuredParentWethGateway = await parentChainPublicClient.readContract({
+      address: tokenBridgeContracts.parentChainContracts.router,
+      abi: parseAbi(['function getGateway(address) view returns (address)']),
+      functionName: 'getGateway',
+      args: [tokenBridgeContracts.parentChainContracts.weth],
+    });
+
+    if (configuredParentWethGateway != tokenBridgeContracts.parentChainContracts.wethGateway) {
+      throw new Error(
+        `WETH gateway mismatch on parent chain. Expected: ${tokenBridgeContracts.parentChainContracts.wethGateway}, Found: ${configuredParentWethGateway}`,
+      );
+    }
+
+    const configuredChildWethGateway = await parentChainPublicClient.readContract({
+      address: tokenBridgeContracts.parentChainContracts.wethGateway,
+      abi: parseAbi(['function counterpartGateway() view returns (address)']),
+      functionName: 'counterpartGateway',
+    });
+
+    if (configuredChildWethGateway != tokenBridgeContracts.orbitChainContracts.wethGateway) {
+      throw new Error(
+        `WETH gateway mismatch on child chain. Expected: ${tokenBridgeContracts.orbitChainContracts.wethGateway}, Found: ${configuredChildWethGateway}`,
+      );
+    }
+
+    console.log('WETH gateway verified successfully');
+  }
 
   //
   // Verify chain ownership
@@ -158,7 +197,6 @@ const main = async () => {
   });
 
   if (!childChainUpgradeExecutorHasRole) {
-    console.log(childChainUpgradeExecutorHasRole);
     throw new Error(
       `Chain owner ${chainOwnerAddress} does not have EXECUTOR role in the UpgradeExecutor contract on the child-chain. Retryable ticket execution might have failed.`,
     );
