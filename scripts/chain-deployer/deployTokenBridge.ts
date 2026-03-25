@@ -1,7 +1,6 @@
 import { createPublicClient, http, zeroAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
-  applyBuffer,
   getBlockExplorerUrl,
   getChainConfigFromChainId,
   getRpcUrl,
@@ -20,7 +19,6 @@ import {
   enqueueTokenBridgePrepareSetWethGatewayTransactionRequest,
   enqueueTokenBridgePrepareTransactionRequest,
 } from '@arbitrum/chain-sdk';
-import { calculateMaxSubmissionCost } from '../../src/utils/on-chain-helpers';
 
 // Check for required env variables
 if (
@@ -32,15 +30,6 @@ if (
     'The following environment variables must be present: DEPLOYER_PRIVATE_KEY, PARENT_CHAIN_ID, MAX_GAS_PRICE',
   );
 }
-
-// Gas configuration for retryable tickets
-const maxGasForContracts = 15_000_000n;
-const maxGasForFactory = 5_000_000n;
-const maxGasForWethGateway = 60_000n;
-const dataLengthForFactory = 25_000n; // estimation obtained from previous transactions (23562), should be updated if the factory contract code changes
-const dataLengthForContracts = 40_000n; //  estimation obtained from previous transactions (37476), should be updated if the factory contract code changes
-const dataLengthForWethGateway = 300n; // estimation obtained from previous transactions (292), should be updated if the setWethGateway function code changes
-const defaultMaxGasPrice = BigInt(process.env.MAX_GAS_PRICE);
 
 // Load accounts
 const deployer = privateKeyToAccount(sanitizePrivateKey(process.env.DEPLOYER_PRIVATE_KEY));
@@ -104,15 +93,6 @@ const main = async () => {
     }
   }
 
-  const maxSubmissionCostForFactory = await calculateMaxSubmissionCost(
-    parentChainPublicClient,
-    dataLengthForFactory,
-  );
-  const maxSubmissionCostForContracts = await calculateMaxSubmissionCost(
-    parentChainPublicClient,
-    dataLengthForContracts,
-  );
-
   const txRequest = await enqueueTokenBridgePrepareTransactionRequest({
     params: {
       rollup: coreContracts.rollup,
@@ -120,11 +100,6 @@ const main = async () => {
     },
     account: deployer.address,
     parentChainPublicClient,
-    maxGasForContracts: applyBuffer(maxGasForContracts),
-    maxGasForFactory: applyBuffer(maxGasForFactory),
-    maxGasPrice: defaultMaxGasPrice,
-    maxSubmissionCostForFactory: applyBuffer(maxSubmissionCostForFactory),
-    maxSubmissionCostForContracts: applyBuffer(maxSubmissionCostForContracts),
   });
 
   // sign and send the transaction
@@ -153,25 +128,12 @@ const main = async () => {
 
   if (nativeToken == zeroAddress) {
     // set weth gateway
-
-    const maxSubmissionCostForWethGateway = await calculateMaxSubmissionCost(
-      parentChainPublicClient,
-      dataLengthForWethGateway,
-    );
-
-    console.log(`Setting the WETH gateway in the TokenBridge...`);
-    console.log('Data length for WETH gateway:', dataLengthForWethGateway);
-    console.log(`Max submission cost for WETH gateway: ${maxSubmissionCostForWethGateway}`);
-
     const setWethGatewayTxRequest = await enqueueTokenBridgePrepareSetWethGatewayTransactionRequest(
       {
         rollup: coreContracts.rollup,
         account: deployer.address,
         rollupDeploymentBlockNumber: BigInt(coreContracts.deployedAtBlockNumber),
         parentChainPublicClient,
-        gasLimit: applyBuffer(maxGasForWethGateway),
-        maxGasPrice: defaultMaxGasPrice,
-        maxSubmissionCost: applyBuffer(maxSubmissionCostForWethGateway),
       },
     );
 

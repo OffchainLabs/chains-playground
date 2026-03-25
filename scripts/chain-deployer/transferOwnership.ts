@@ -285,7 +285,7 @@ const main = async () => {
   );
 
   //
-  // Add UpgradeExecutor to chain owner on child-chain (via RetryableTicket)
+  // Add UpgradeExecutor to chain owner on child-chain
   // (send this by signing the transaction with the deployer and using Inbox.sendL2Message)
   //
   const addChainOwnerCalldata = encodeFunctionData({
@@ -330,13 +330,13 @@ const main = async () => {
     hash: addChainOwnerTransactionHash,
   });
   console.log(
-    `Retryable ticket for adding the upgrade executor as chain owner, executed in: ${getBlockExplorerUrl(
+    `SendL2Message for adding the upgrade executor as chain owner, executed in: ${getBlockExplorerUrl(
       parentChainInformation,
     )}/tx/${addChainOwnerTransactionReceipt.transactionHash}`,
   );
 
   //
-  // Remove deployer from chain owner on child-chain (via RetryableTicket)
+  // Remove deployer from chain owner on child-chain
   // (send this by signing the transaction with the deployer and using Inbox.sendL2Message)
   //
   const removeChainOwnerCalldata = encodeFunctionData({
@@ -382,7 +382,7 @@ const main = async () => {
       hash: removeChainOwnerTransactionHash,
     });
   console.log(
-    `Retryable ticket for removing the deployer as chain owner, executed in: ${getBlockExplorerUrl(
+    `SendL2Message for removing the deployer as chain owner, executed in: ${getBlockExplorerUrl(
       parentChainInformation,
     )}/tx/${removeChainOwnerTransactionReceipt.transactionHash}`,
   );

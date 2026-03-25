@@ -77,7 +77,6 @@ const main = async () => {
     // Save single node config file
     const singleNodeConfigFilePath = saveNodeConfigFile('rpc', baseNodeConfig);
     console.log(`Node config written to ${singleNodeConfigFilePath}`);
-    return;
   } else {
     // Split config into the different entities
     const { batchPosterConfig, stakerConfig, rpcConfig } = splitConfigPerType(baseNodeConfig);

@@ -26,7 +26,6 @@ import {
 import { getTokenBridgeCreatorAddress } from '@arbitrum/chain-sdk/utils';
 
 // Check for required env variables
-// Check for required env variables
 if (
   !process.env.DEPLOYER_PRIVATE_KEY ||
   !process.env.CHAIN_OWNER_ADDRESS ||
