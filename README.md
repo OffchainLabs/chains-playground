@@ -35,6 +35,8 @@ pnpm full-deployment
 
 This script will deploy the parent chain contracts using the specified RPC, and then retryable tickets to send the ownership transferring transactions.
 
+If starting a chain elsewhere note that the node will wait for the contract deployments to reach a finalised state before starting up properly. eg on sepolia ~12 mins. It's ok to start the node during this period, it'll just wait for finalisation.
+
 Once a node is running for the new chain, all retryable tickets execution can be checked with the following script
 
 ```shell
