@@ -67,7 +67,6 @@ const main = async () => {
         inbox: coreContracts.inbox,
         'sequencer-inbox': coreContracts.sequencerInbox,
         rollup: coreContracts.rollup,
-        'validator-utils': coreContracts.validatorUtils,
         'validator-wallet-creator': coreContracts.validatorWalletCreator,
         'stake-token': stakeToken,
         'deployed-at': coreContracts.deployedAtBlockNumber,
