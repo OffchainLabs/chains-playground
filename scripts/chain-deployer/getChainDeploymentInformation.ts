@@ -4,6 +4,7 @@ import { getWethAddress } from '@arbitrum/chain-sdk/utils';
 import {
   readChainConfigFile,
   readCoreContractsFile,
+  readTokenBridgeContractsFile,
   getChainConfigFromChainId,
   getRpcUrl,
 } from '../../src/utils/helpers';
@@ -20,8 +21,19 @@ const parentChainPublicClient = createPublicClient({
 });
 
 const main = async () => {
-  const chainConfig = readChainConfigFile();
+  console.log('********************************');
+  console.log('* Chain deployment information *');
+  console.log('********************************');
+  console.log('');
+
   const coreContracts = readCoreContractsFile();
+  console.log('Core contracts:', coreContracts);
+
+  const tokenBridgeContracts = readTokenBridgeContractsFile();
+  console.log('');
+  console.log('Token bridge contracts:', tokenBridgeContracts);
+
+  const chainConfig = readChainConfigFile();
   const stakeToken = getWethAddress(parentChainPublicClient);
 
   const output = [
