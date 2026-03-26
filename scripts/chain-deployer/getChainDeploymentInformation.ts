@@ -1,6 +1,5 @@
 import { createPublicClient, http } from 'viem';
 import { arbitrum, arbitrumNova, arbitrumSepolia } from 'viem/chains';
-import { getWethAddress } from '@arbitrum/chain-sdk/utils';
 import {
   readChainConfigFile,
   readCoreContractsFile,
@@ -8,6 +7,7 @@ import {
   getChainConfigFromChainId,
   getRpcUrl,
 } from '../../src/utils/helpers';
+import { getChainStakeToken } from '../../src/utils/chain-info-helpers';
 import 'dotenv/config';
 
 const ARBITRUM_CHAIN_IDS: number[] = [arbitrum.id, arbitrumNova.id, arbitrumSepolia.id];
@@ -53,7 +53,7 @@ const main = async () => {
       'Chain configuration not found. Please run the deploy script first to generate the chain configuration file.',
     );
   }
-  const stakeToken = getWethAddress(parentChainPublicClient);
+  const stakeToken = await getChainStakeToken(parentChainPublicClient);
 
   const output = [
     {
