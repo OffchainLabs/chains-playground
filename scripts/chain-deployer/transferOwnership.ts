@@ -213,79 +213,90 @@ const main = async () => {
   console.log('*****************************************');
   console.log('');
 
-  //
-  // Add chain owner to parent-chain's UpgradeExecutor
-  // (`deployer` has rights to perform this action)
-  //
-  const addParentChainExecutorTransactionRequest =
-    await upgradeExecutorPrepareAddExecutorTransactionRequest({
-      account: chainOwnerAddress,
-      upgradeExecutorAddress: coreContracts.upgradeExecutor,
-      executorAccountAddress: deployer.address,
-      publicClient: parentChainPublicClient,
+  if (chainOwnerAddress.toLowerCase() === deployer.address.toLowerCase()) {
+    console.log(
+      'Chain owner address is the same as the Deployer address. Only the UpgradeExecutor will be added to the chain owner.',
+    );
+  }
+
+  // We only execute steps 1 and 2 if chain owner != deployer
+  if (chainOwnerAddress.toLowerCase() !== deployer.address.toLowerCase()) {
+    //
+    // 1. Add chain owner to parent-chain's UpgradeExecutor
+    // (`deployer` has rights to perform this action)
+    //
+    const addParentChainExecutorTransactionRequest =
+      await upgradeExecutorPrepareAddExecutorTransactionRequest({
+        account: chainOwnerAddress,
+        upgradeExecutorAddress: coreContracts.upgradeExecutor,
+        executorAccountAddress: deployer.address,
+        publicClient: parentChainPublicClient,
+      });
+
+    const addParentChainExecutorTransactionHash = await parentChainPublicClient.sendRawTransaction({
+      serializedTransaction: await deployer.signTransaction(
+        addParentChainExecutorTransactionRequest,
+      ),
     });
 
-  const addParentChainExecutorTransactionHash = await parentChainPublicClient.sendRawTransaction({
-    serializedTransaction: await deployer.signTransaction(addParentChainExecutorTransactionRequest),
-  });
+    const addParentChainExecutorTransactionReceipt =
+      await parentChainPublicClient.waitForTransactionReceipt({
+        hash: addParentChainExecutorTransactionHash,
+      });
 
-  const addParentChainExecutorTransactionReceipt =
-    await parentChainPublicClient.waitForTransactionReceipt({
-      hash: addParentChainExecutorTransactionHash,
+    console.log(
+      `Chain owner added as parent-chain executor in ${getBlockExplorerUrl(
+        parentChainInformation,
+      )}/tx/${addParentChainExecutorTransactionReceipt.transactionHash}`,
+    );
+
+    //
+    // 2. Add chain owner to child-chain's UpgradeExecutor (via RetryableTicket)
+    // (the retryable ticket needs to be sent through the parent-chain's UpgradeExecutor, since its alias has executor rights on the child-chain's UpgradeExecutor)
+    //
+    const grantRoleCalldata = encodeFunctionData({
+      abi: upgradeExecutorABI,
+      functionName: 'grantRole',
+      args: [
+        UPGRADE_EXECUTOR_ROLE_EXECUTOR, // role
+        chainOwnerAddress, // account
+      ],
+    });
+    const addChildChainExecutorData = upgradeExecutorEncodeFunctionData({
+      functionName: 'executeCall',
+      args: [
+        tokenBridgeContracts.orbitChainContracts.upgradeExecutor, // target
+        grantRoleCalldata, // targetCallData
+      ],
     });
 
-  console.log(
-    `Chain owner added as parent-chain executor in ${getBlockExplorerUrl(
-      parentChainInformation,
-    )}/tx/${addParentChainExecutorTransactionReceipt.transactionHash}`,
-  );
+    const addChildChainExecutorTransactionRequest =
+      await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
+        to: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
+        l2CallValue: 0n,
+        excessFeeRefundAddress: chainOwnerAddress,
+        callValueRefundAddress: chainOwnerAddress,
+        gasLimit: defaultMaxGasLimit,
+        maxFeePerGas: defaultMaxGasPrice,
+        data: addChildChainExecutorData,
+      });
+
+    const addChildChainExecutorTransactionHash = await parentChainWalletClient.writeContract(
+      addChildChainExecutorTransactionRequest,
+    );
+    const addChildChainExecutorTransactionReceipt =
+      await parentChainPublicClient.waitForTransactionReceipt({
+        hash: addChildChainExecutorTransactionHash,
+      });
+    console.log(
+      `Retryable ticket for adding the chain owner as child-chain executor, executed in: ${getBlockExplorerUrl(
+        parentChainInformation,
+      )}/tx/${addChildChainExecutorTransactionReceipt.transactionHash}`,
+    );
+  }
 
   //
-  // Add chain owner to child-chain's UpgradeExecutor (via RetryableTicket)
-  // (the retryable ticket needs to be sent through the parent-chain's UpgradeExecutor, since its alias has executor rights on the child-chain's UpgradeExecutor)
-  //
-  const grantRoleCalldata = encodeFunctionData({
-    abi: upgradeExecutorABI,
-    functionName: 'grantRole',
-    args: [
-      UPGRADE_EXECUTOR_ROLE_EXECUTOR, // role
-      chainOwnerAddress, // account
-    ],
-  });
-  const addChildChainExecutorData = upgradeExecutorEncodeFunctionData({
-    functionName: 'executeCall',
-    args: [
-      tokenBridgeContracts.orbitChainContracts.upgradeExecutor, // target
-      grantRoleCalldata, // targetCallData
-    ],
-  });
-
-  const addChildChainExecutorTransactionRequest =
-    await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
-      to: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
-      l2CallValue: 0n,
-      excessFeeRefundAddress: chainOwnerAddress,
-      callValueRefundAddress: chainOwnerAddress,
-      gasLimit: defaultMaxGasLimit,
-      maxFeePerGas: defaultMaxGasPrice,
-      data: addChildChainExecutorData,
-    });
-
-  const addChildChainExecutorTransactionHash = await parentChainWalletClient.writeContract(
-    addChildChainExecutorTransactionRequest,
-  );
-  const addChildChainExecutorTransactionReceipt =
-    await parentChainPublicClient.waitForTransactionReceipt({
-      hash: addChildChainExecutorTransactionHash,
-    });
-  console.log(
-    `Retryable ticket for adding the chain owner as child-chain executor, executed in: ${getBlockExplorerUrl(
-      parentChainInformation,
-    )}/tx/${addChildChainExecutorTransactionReceipt.transactionHash}`,
-  );
-
-  //
-  // Add UpgradeExecutor to chain owner on child-chain
+  // 3. Add UpgradeExecutor to chain owner on child-chain (this step is always executed)
   // (send this by signing the transaction with the deployer and using Inbox.sendL2Message)
   //
   const addChainOwnerCalldata = encodeFunctionData({
@@ -336,7 +347,7 @@ const main = async () => {
   );
 
   //
-  // Remove deployer from chain owner on child-chain
+  // 4. Remove deployer from chain owner on child-chain (this step is always executed)
   // (send this by signing the transaction with the deployer and using Inbox.sendL2Message)
   //
   const removeChainOwnerCalldata = encodeFunctionData({
@@ -387,80 +398,82 @@ const main = async () => {
     )}/tx/${removeChainOwnerTransactionReceipt.transactionHash}`,
   );
 
-  //
-  // Remove deployer from child-chain's UpgradeExecutor (via RetryableTicket)
-  // (the retryable ticket needs to be sent through the parent-chain's UpgradeExecutor, since its alias has executor rights on the child-chain's UpgradeExecutor)
-  //
-  const revokeRoleCalldata = encodeFunctionData({
-    abi: upgradeExecutorABI,
-    functionName: 'revokeRole',
-    args: [
-      UPGRADE_EXECUTOR_ROLE_EXECUTOR, // role
-      deployer.address, // account
-    ],
-  });
-  const removeChildChainExecutorData = upgradeExecutorEncodeFunctionData({
-    functionName: 'executeCall',
-    args: [
-      tokenBridgeContracts.orbitChainContracts.upgradeExecutor, // target
-      revokeRoleCalldata, // targetCallData
-    ],
-  });
-
-  const removeChildChainExecutorTransactionRequest =
-    await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
-      to: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
-      l2CallValue: 0n,
-      excessFeeRefundAddress: chainOwnerAddress,
-      callValueRefundAddress: chainOwnerAddress,
-      gasLimit: defaultMaxGasLimit,
-      maxFeePerGas: defaultMaxGasPrice,
-      data: removeChildChainExecutorData,
+  // We only execute steps 5 and 6 if chain owner != deployer
+  if (chainOwnerAddress.toLowerCase() !== deployer.address.toLowerCase()) {
+    //
+    // 5. Remove deployer from child-chain's UpgradeExecutor (via RetryableTicket)
+    // (the retryable ticket needs to be sent through the parent-chain's UpgradeExecutor, since its alias has executor rights on the child-chain's UpgradeExecutor)
+    //
+    const revokeRoleCalldata = encodeFunctionData({
+      abi: upgradeExecutorABI,
+      functionName: 'revokeRole',
+      args: [
+        UPGRADE_EXECUTOR_ROLE_EXECUTOR, // role
+        deployer.address, // account
+      ],
+    });
+    const removeChildChainExecutorData = upgradeExecutorEncodeFunctionData({
+      functionName: 'executeCall',
+      args: [
+        tokenBridgeContracts.orbitChainContracts.upgradeExecutor, // target
+        revokeRoleCalldata, // targetCallData
+      ],
     });
 
-  const removeChildChainExecutorTransactionHash = await parentChainWalletClient.writeContract(
-    removeChildChainExecutorTransactionRequest,
-  );
-  const removeChildChainExecutorTransactionReceipt =
-    await parentChainPublicClient.waitForTransactionReceipt({
-      hash: removeChildChainExecutorTransactionHash,
-    });
-  console.log(
-    `Retryable ticket for removing the deployer as child-chain executor, executed in: ${getBlockExplorerUrl(
-      parentChainInformation,
-    )}/tx/${removeChildChainExecutorTransactionReceipt.transactionHash}`,
-  );
+    const removeChildChainExecutorTransactionRequest =
+      await prepareRetryableTicketThroughUpgradeExecutorTransactionRequest({
+        to: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
+        l2CallValue: 0n,
+        excessFeeRefundAddress: chainOwnerAddress,
+        callValueRefundAddress: chainOwnerAddress,
+        gasLimit: defaultMaxGasLimit,
+        maxFeePerGas: defaultMaxGasPrice,
+        data: removeChildChainExecutorData,
+      });
 
-  //
-  // Remove deployer from parent-chain's UpgradeExecutor
-  // (`deployer` has rights to perform this action)
-  //
-  const removeParentChainExecutorTransactionRequest =
-    await upgradeExecutorPrepareRemoveExecutorTransactionRequest({
-      account: deployer.address,
-      upgradeExecutorAddress: coreContracts.upgradeExecutor,
-      executorAccountAddress: deployer.address,
-      publicClient: parentChainPublicClient,
-    });
+    const removeChildChainExecutorTransactionHash = await parentChainWalletClient.writeContract(
+      removeChildChainExecutorTransactionRequest,
+    );
+    const removeChildChainExecutorTransactionReceipt =
+      await parentChainPublicClient.waitForTransactionReceipt({
+        hash: removeChildChainExecutorTransactionHash,
+      });
+    console.log(
+      `Retryable ticket for removing the deployer as child-chain executor, executed in: ${getBlockExplorerUrl(
+        parentChainInformation,
+      )}/tx/${removeChildChainExecutorTransactionReceipt.transactionHash}`,
+    );
 
-  const removeParentChainExecutorTransactionHash = await parentChainPublicClient.sendRawTransaction(
-    {
-      serializedTransaction: await deployer.signTransaction(
-        removeParentChainExecutorTransactionRequest,
-      ),
-    },
-  );
+    //
+    // 6. Remove deployer from parent-chain's UpgradeExecutor
+    // (`deployer` has rights to perform this action)
+    //
+    const removeParentChainExecutorTransactionRequest =
+      await upgradeExecutorPrepareRemoveExecutorTransactionRequest({
+        account: deployer.address,
+        upgradeExecutorAddress: coreContracts.upgradeExecutor,
+        executorAccountAddress: deployer.address,
+        publicClient: parentChainPublicClient,
+      });
 
-  const removeParentChainExecutorTransactionReceipt =
-    await parentChainPublicClient.waitForTransactionReceipt({
-      hash: removeParentChainExecutorTransactionHash,
-    });
+    const removeParentChainExecutorTransactionHash =
+      await parentChainPublicClient.sendRawTransaction({
+        serializedTransaction: await deployer.signTransaction(
+          removeParentChainExecutorTransactionRequest,
+        ),
+      });
 
-  console.log(
-    `Deployer removed as parent-chain executor in ${getBlockExplorerUrl(
-      parentChainInformation,
-    )}/tx/${removeParentChainExecutorTransactionReceipt.transactionHash}`,
-  );
+    const removeParentChainExecutorTransactionReceipt =
+      await parentChainPublicClient.waitForTransactionReceipt({
+        hash: removeParentChainExecutorTransactionHash,
+      });
+
+    console.log(
+      `Deployer removed as parent-chain executor in ${getBlockExplorerUrl(
+        parentChainInformation,
+      )}/tx/${removeParentChainExecutorTransactionReceipt.transactionHash}`,
+    );
+  }
 };
 
 // Calling main

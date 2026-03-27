@@ -171,21 +171,24 @@ const main = async () => {
   );
 
   // 2. Check whether the deployer has been removed from the UpgradeExecutor contract's executors list on the parent-chain
-  const parentChainUpgradeExecutorDeployerHasRole = await parentChainPublicClient.readContract({
-    address: coreContracts.upgradeExecutor,
-    abi: upgradeExecutorABI,
-    functionName: 'hasRole',
-    args: [UPGRADE_EXECUTOR_ROLE_EXECUTOR, deployer.address],
-  });
+  // (only if deployer != chain owner)
+  if (deployer.address.toLowerCase() != chainOwnerAddress.toLowerCase()) {
+    const parentChainUpgradeExecutorDeployerHasRole = await parentChainPublicClient.readContract({
+      address: coreContracts.upgradeExecutor,
+      abi: upgradeExecutorABI,
+      functionName: 'hasRole',
+      args: [UPGRADE_EXECUTOR_ROLE_EXECUTOR, deployer.address],
+    });
 
-  if (parentChainUpgradeExecutorDeployerHasRole) {
-    throw new Error(
-      `Deployer ${deployer.address} still has EXECUTOR role in the UpgradeExecutor contract on the parent-chain.`,
+    if (parentChainUpgradeExecutorDeployerHasRole) {
+      throw new Error(
+        `Deployer ${deployer.address} still has EXECUTOR role in the UpgradeExecutor contract on the parent-chain.`,
+      );
+    }
+    console.log(
+      `Deployer ${deployer.address} does not have EXECUTOR role in the UpgradeExecutor contract on the parent-chain.`,
     );
   }
-  console.log(
-    `Deployer ${deployer.address} does not have EXECUTOR role in the UpgradeExecutor contract on the parent-chain.`,
-  );
 
   // 3. Check whether the chain owner has the EXECUTOR role in the UpgradeExecutor contract on the child-chain
   const childChainUpgradeExecutorHasRole = await arbitrumChainPublicClient.readContract({
@@ -205,21 +208,24 @@ const main = async () => {
   );
 
   // 4. Check whether the deployer has been removed from the UpgradeExecutor contract's executors list on the child-chain
-  const childChainUpgradeExecutorDeployerHasRole = await arbitrumChainPublicClient.readContract({
-    address: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
-    abi: upgradeExecutorABI,
-    functionName: 'hasRole',
-    args: [UPGRADE_EXECUTOR_ROLE_EXECUTOR, deployer.address],
-  });
+  // (only if deployer != chain owner)
+  if (deployer.address.toLowerCase() != chainOwnerAddress.toLowerCase()) {
+    const childChainUpgradeExecutorDeployerHasRole = await arbitrumChainPublicClient.readContract({
+      address: tokenBridgeContracts.orbitChainContracts.upgradeExecutor,
+      abi: upgradeExecutorABI,
+      functionName: 'hasRole',
+      args: [UPGRADE_EXECUTOR_ROLE_EXECUTOR, deployer.address],
+    });
 
-  if (childChainUpgradeExecutorDeployerHasRole) {
-    throw new Error(
-      `Deployer ${deployer.address} still has EXECUTOR role in the UpgradeExecutor contract on the child-chain. Retryable ticket execution might have failed.`,
+    if (childChainUpgradeExecutorDeployerHasRole) {
+      throw new Error(
+        `Deployer ${deployer.address} still has EXECUTOR role in the UpgradeExecutor contract on the child-chain. Retryable ticket execution might have failed.`,
+      );
+    }
+    console.log(
+      `Deployer ${deployer.address} does not have EXECUTOR role in the UpgradeExecutor contract on the child-chain.`,
     );
   }
-  console.log(
-    `Deployer ${deployer.address} does not have EXECUTOR role in the UpgradeExecutor contract on the child-chain.`,
-  );
 
   // 5. Check whether the UpgradeExecutor contract on the child-chain is set as a chain owner
   const childChainUpgradeExecutorIsChainOwner = await arbitrumChainPublicClient.readContract({

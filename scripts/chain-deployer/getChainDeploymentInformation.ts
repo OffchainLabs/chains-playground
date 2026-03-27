@@ -63,10 +63,10 @@ const main = async () => {
       'chain-name': process.env.ARBITRUM_CHAIN_NAME || `chain-${chainConfig.chainId}`,
       'chain-config': chainConfig,
       'rollup': {
-        bridge: coreContracts.bridge,
-        inbox: coreContracts.inbox,
+        'bridge': coreContracts.bridge,
+        'inbox': coreContracts.inbox,
         'sequencer-inbox': coreContracts.sequencerInbox,
-        rollup: coreContracts.rollup,
+        'rollup': coreContracts.rollup,
         'validator-wallet-creator': coreContracts.validatorWalletCreator,
         'stake-token': stakeToken,
         'deployed-at': coreContracts.deployedAtBlockNumber,

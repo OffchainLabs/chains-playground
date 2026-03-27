@@ -187,4 +187,3 @@ export const readTokenBridgeContractsFile = (): TokenBridgeContracts => {
   const filePath = configDir + '/' + tokenBridgeContractsFilename;
   return JSON.parse(readFileSync(filePath, 'utf8'));
 };
-
